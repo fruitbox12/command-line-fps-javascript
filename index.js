@@ -152,23 +152,37 @@ const initEvents = () => {
   process.stdin.resume();
 };
 
-const getPlayerChar = (x, y) => {
-  const newX = parseInt(x * bulletWidth);
-  const newY = parseInt(y * bulletHeight);
-  if (newY === parseInt(bulletHeight / 2) && (newX === parseInt(bulletWidth / 2) || newX === parseInt(bulletWidth / 2) - 1)) {
-    return 'O';
+// ASCII Art for enemy players
+const enemyArt = [
+  "    .---.    ",
+  "  /_____\\  ",
+  "  ( '.' )  ",
+  "   \\_-_/  ",
+  "  .-\"`'V'//-. ",
+  " / ,   |// , \\ ",
+  "/ /|Ll //Ll|\\ \\ ",
+  "/ / |__//   | \\_\\ ",
+  "\\ \\/---|[]==| / / ",
+  "\\/\\__/ |   \\/\\/ ",
+  "|/_   | Ll_\\| ",
+  "  |`^\"\"\"^`| ",
+  "  |   |   | ",
+  "  |   |   | ",
+  "  |   |   | ",
+  "  |   |   | ",
+  "  L___l___J ",
+  "   |_ | _|  ",
+  "(___|___) ",
+  "^^^ ^^^ "
+];
+
+// Function to get enemy player ASCII art in red
+const getEnemyPlayerChar = (x, y) => {
+  const artX = parseInt(x * bulletWidth);
+  const artY = parseInt(y * bulletHeight);
+  if (artY < enemyArt.length && artX < enemyArt[artY].length) {
+    return `\x1b[31m${enemyArt[artY][artX]}\x1b[0m`; // Red color
   }
-
-  return ' ';
-};
-
-const getBulletChar = (x, y) => {
-  const newX = parseInt(x * bulletWidth);
-  const newY = parseInt(y * bulletHeight);
-  if (newY === parseInt(bulletHeight / 2) && (newX === parseInt(bulletWidth / 2) || newX === parseInt(bulletWidth / 2) - 1)) {
-    return '*';
-  }
-
   return ' ';
 };
 
@@ -254,13 +268,13 @@ const mainLoop = () => {
 
   screen[parseInt(playerX) * screenWidth + parseInt(playerY)] = 'P';
 
-  // Render other players
+  // Render other players in 3D view
   for (const id in peers) {
     if (peers[id].state) {
       const { x, y, a } = peers[id].state;
       const vecX = x - playerX;
       const vecY = y - playerY;
-      const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
+      const distanceFromPlayer = Math.sqrt(vecX * vx + vecY * vy);
       const eyeX = Math.sin(playerA);
       const eyeY = Math.cos(playerA);
       let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
@@ -271,14 +285,14 @@ const mainLoop = () => {
         const objectCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / parseFloat(distanceFromPlayer)));
         const objectFloor = screenHeight - objectCeiling;
         const objectHeight = parseInt(objectFloor - objectCeiling);
-        const objectAspectRatio = parseFloat(bulletHeight / bulletWidth);
+        const objectAspectRatio = parseFloat(enemyArt.length / enemyArt[0].length);
         const objectWidth = parseInt(objectHeight / objectAspectRatio);
         const middleOfObject = (0.5 * (objectAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
         for (let lx = 0; lx < objectWidth; lx++) {
           for (let ly = 0; ly < objectHeight; ly++) {
             const sampleX = parseFloat(lx / objectWidth);
             const sampleY = parseFloat(ly / objectHeight);
-            const char = getPlayerChar(sampleX, sampleY);
+            const char = getEnemyPlayerChar(sampleX, sampleY);
             const objectColumn = parseInt(middleOfObject + lx - (objectWidth / 2.0));
             if (objectColumn >= 0 && objectColumn < screenWidth) {
               if (char !== ' ' && depthBuffer[objectColumn] >= distanceFromPlayer) {
