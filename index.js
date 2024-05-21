@@ -186,6 +186,16 @@ const getEnemyPlayerChar = (x, y) => {
   return ' ';
 };
 
+// Function to get bullet ASCII art
+const getBulletChar = (x, y) => {
+  const newX = parseInt(x * bulletWidth);
+  const newY = parseInt(y * bulletHeight);
+  if (newY === parseInt(bulletHeight / 2) && (newX === parseInt(bulletWidth / 2) || newX === parseInt(bulletWidth / 2) - 1)) {
+    return '*';
+  }
+  return ' ';
+};
+
 const mainLoop = () => {
   t2 = performance.now();
   elapsedTime = (t2 - t1) / 1000;
