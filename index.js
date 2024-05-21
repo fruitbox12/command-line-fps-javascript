@@ -178,8 +178,8 @@ const enemyArt = [
 
 // Function to get enemy player ASCII art in red
 const getEnemyPlayerChar = (x, y) => {
-  const artX = parseInt(x * bulletWidth);
-  const artY = parseInt(y * bulletHeight);
+  const artX = parseInt(x * enemyArt[0].length);
+  const artY = parseInt(y * enemyArt.length);
   if (artY < enemyArt.length && artX < enemyArt[artY].length) {
     return `\x1b[31m${enemyArt[artY][artX]}\x1b[0m`; // Red color
   }
@@ -274,7 +274,7 @@ const mainLoop = () => {
       const { x, y, a } = peers[id].state;
       const vecX = x - playerX;
       const vecY = y - playerY;
-      const distanceFromPlayer = Math.sqrt(vecX * vx + vecY * vy);
+      const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
       const eyeX = Math.sin(playerA);
       const eyeY = Math.cos(playerA);
       let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
