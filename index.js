@@ -68,7 +68,7 @@ swarm.on('connection', (socket, peerInfo) => {
 
   socket.on('data', (data) => {
     const state = JSON.parse(data.toString());
-    peers[state.id].state = state;
+    peers[state.id] = { socket, state };
   });
 
   socket.on('close', () => {
@@ -242,7 +242,16 @@ const mainLoop = () => {
     }
   }
 
+  // Render the local player
   screen[parseInt(playerX) * screenWidth + parseInt(playerY)] = 'P';
+
+  // Render other players
+  for (const id in peers) {
+    if (peers[id].state) {
+      const { x, y } = peers[id].state;
+      screen[parseInt(x) * screenWidth + parseInt(y)] = 'O'; // Use 'O' to represent other players
+    }
+  }
 
   bullets.forEach(bullet => {
     const vecX = bullet.x - playerX;
