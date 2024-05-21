@@ -152,6 +152,16 @@ const initEvents = () => {
   process.stdin.resume();
 };
 
+const getPlayerChar = (x, y) => {
+  const newX = parseInt(x * bulletWidth);
+  const newY = parseInt(y * bulletHeight);
+  if (newY === parseInt(bulletHeight / 2) && (newX === parseInt(bulletWidth / 2) || newX === parseInt(bulletWidth / 2) - 1)) {
+    return 'O';
+  }
+
+  return ' ';
+};
+
 const getBulletChar = (x, y) => {
   const newX = parseInt(x * bulletWidth);
   const newY = parseInt(y * bulletHeight);
@@ -242,14 +252,43 @@ const mainLoop = () => {
     }
   }
 
-  // Render the local player
   screen[parseInt(playerX) * screenWidth + parseInt(playerY)] = 'P';
 
   // Render other players
   for (const id in peers) {
     if (peers[id].state) {
-      const { x, y } = peers[id].state;
-      screen[parseInt(x) * screenWidth + parseInt(y)] = 'O'; // Use 'O' to represent other players
+      const { x, y, a } = peers[id].state;
+      const vecX = x - playerX;
+      const vecY = y - playerY;
+      const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
+      const eyeX = Math.sin(playerA);
+      const eyeY = Math.cos(playerA);
+      let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
+      if (objectAngle < -3.14159) objectAngle += 2.0 * 3.14159;
+      if (objectAngle > 3.14159) objectAngle -= 2.0 * 3.14159;
+      const inPlayerFOV = Math.abs(objectAngle) < (FOV / 2.0);
+      if (inPlayerFOV && distanceFromPlayer >= 0.5 && distanceFromPlayer < depth) {
+        const objectCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / parseFloat(distanceFromPlayer)));
+        const objectFloor = screenHeight - objectCeiling;
+        const objectHeight = parseInt(objectFloor - objectCeiling);
+        const objectAspectRatio = parseFloat(bulletHeight / bulletWidth);
+        const objectWidth = parseInt(objectHeight / objectAspectRatio);
+        const middleOfObject = (0.5 * (objectAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
+        for (let lx = 0; lx < objectWidth; lx++) {
+          for (let ly = 0; ly < objectHeight; ly++) {
+            const sampleX = parseFloat(lx / objectWidth);
+            const sampleY = parseFloat(ly / objectHeight);
+            const char = getPlayerChar(sampleX, sampleY);
+            const objectColumn = parseInt(middleOfObject + lx - (objectWidth / 2.0));
+            if (objectColumn >= 0 && objectColumn < screenWidth) {
+              if (char !== ' ' && depthBuffer[objectColumn] >= distanceFromPlayer) {
+                screen[objectColumn + (parseInt(objectCeiling + ly) * screenWidth)] = char;
+                depthBuffer[objectColumn] = distanceFromPlayer;
+              }
+            }
+          }
+        }
+      }
     }
   }
 
@@ -259,7 +298,7 @@ const mainLoop = () => {
     const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
     const eyeX = Math.sin(playerA);
     const eyeY = Math.cos(playerA);
-    let objectAngle = parseFloat(Math.atan2(eyeY, eyeX)) - parseFloat(Math.atan2(vecY, vecX));
+    let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
     if (objectAngle < -3.14159) objectAngle += 2.0 * 3.14159;
     if (objectAngle > 3.14159) objectAngle -= 2.0 * 3.14159;
     const inPlayerFOV = Math.abs(objectAngle) < (FOV / 2.0);
