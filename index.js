@@ -63,17 +63,16 @@ swarm.join(topic, {
 
 swarm.on('connection', (socket, peerInfo) => {
   console.log('New connection!');
+  const id = peerInfo.publicKey.toString('hex');
+  peers[id] = { socket, state: {} };
+
   socket.on('data', (data) => {
     const state = JSON.parse(data.toString());
-    peers[state.id] = state;
+    peers[state.id].state = state;
   });
 
   socket.on('close', () => {
-    for (const id in peers) {
-      if (peers[id].socket === socket) {
-        delete peers[id];
-      }
-    }
+    delete peers[id];
   });
 
   // Send current state to the new peer
@@ -100,7 +99,9 @@ const broadcastState = () => {
     bullets
   });
   for (const id in peers) {
-    peers[id].socket.write(state);
+    if (peers[id].socket) {
+      peers[id].socket.write(state);
+    }
   }
 };
 
