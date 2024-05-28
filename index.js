@@ -47,6 +47,7 @@ let playerX = 8.0;
 let playerY = 8.0;
 let playerA = 0.0;
 let playerHealth = 100;
+let gameState = 'lobby'; // 'lobby' or 'game'
 
 let t1 = performance.now();
 let t2 = performance.now();
@@ -65,15 +66,17 @@ swarm.join(topic, {
 swarm.on('connection', (socket, peerInfo) => {
   console.log('New connection!');
   const id = peerInfo.publicKey.toString('hex');
-  peers[id] = { socket, state: { health: 100 } };
+  peers[id] = { socket, state: { health: 100, ready: false } };
 
   socket.on('data', (data) => {
     const state = JSON.parse(data.toString());
     peers[state.id] = { socket, state };
+    if (gameState === 'lobby') renderLobby();
   });
 
   socket.on('close', () => {
     delete peers[id];
+    if (gameState === 'lobby') renderLobby();
   });
 
   // Send current state to the new peer
@@ -87,7 +90,8 @@ const sendState = (socket) => {
     y: playerY,
     a: playerA,
     health: playerHealth,
-    bullets
+    bullets,
+    ready: gameState === 'lobby' ? false : true
   });
   socket.write(state);
 };
@@ -99,7 +103,8 @@ const broadcastState = () => {
     y: playerY,
     a: playerA,
     health: playerHealth,
-    bullets
+    bullets,
+    ready: gameState === 'lobby' ? false : true
   });
   for (const id in peers) {
     if (peers[id].socket) {
@@ -114,38 +119,44 @@ const initEvents = () => {
       process.exit(1);
     }
 
-    if (key.name === 'left') {
-      playerA -= (speed * 0.75) * elapsedTime;
-    }
-
-    if (key.name === 'right') {
-      playerA += (speed * 0.75) * elapsedTime;
-    }
-
-    if (key.name === 'up') {
-      playerX += Math.sin(playerA) * speed * elapsedTime;
-      playerY += Math.cos(playerA) * speed * elapsedTime;
-
-      if (map[parseInt(playerX) * mapWidth + parseInt(playerY)] === '#') {
-        playerX -= Math.sin(playerA) * speed * elapsedTime;
-        playerY -= Math.cos(playerA) * speed * elapsedTime;
+    if (gameState === 'game') {
+      if (key.name === 'left') {
+        playerA -= (speed * 0.75) * elapsedTime;
       }
-    }
 
-    if (key.name === 'down') {
-      playerX -= Math.sin(playerA) * speed * elapsedTime;
-      playerY -= Math.cos(playerA) * speed * elapsedTime;
-      if (map[parseInt(playerX) * mapWidth + parseInt(playerY)] === '#') {
+      if (key.name === 'right') {
+        playerA += (speed * 0.75) * elapsedTime;
+      }
+
+      if (key.name === 'up') {
         playerX += Math.sin(playerA) * speed * elapsedTime;
         playerY += Math.cos(playerA) * speed * elapsedTime;
-      }
-    }
 
-    if (key.name === 'space') {
-      const noise = (Math.random() - 0.5) * 0.1;
-      const vx = Math.sin(playerA + noise) * 8.0;
-      const vy = Math.cos(playerA + noise) * 8.0;
-      bullets.push({ x: playerX, y: playerY, vx, vy });
+        if (map[parseInt(playerX) * mapWidth + parseInt(playerY)] === '#') {
+          playerX -= Math.sin(playerA) * speed * elapsedTime;
+          playerY -= Math.cos(playerA) * speed * elapsedTime;
+        }
+      }
+
+      if (key.name === 'down') {
+        playerX -= Math.sin(playerA) * speed * elapsedTime;
+        playerY -= Math.cos(playerA) * speed * elapsedTime;
+        if (map[parseInt(playerX) * mapWidth + parseInt(playerY)] === '#') {
+          playerX += Math.sin(playerA) * speed * elapsedTime;
+          playerY += Math.cos(playerA) * speed * elapsedTime;
+        }
+      }
+
+      if (key.name === 'space') {
+        const noise = (Math.random() - 0.5) * 0.1;
+        const vx = Math.sin(playerA + noise) * 8.0;
+        const vy = Math.cos(playerA + noise) * 8.0;
+        bullets.push({ x: playerX, y: playerY, vx, vy });
+      }
+    } else if (gameState === 'lobby') {
+      if (key.name === 'enter') {
+        startGame();
+      }
     }
 
     broadcastState();
@@ -199,7 +210,36 @@ const getBulletChar = (x, y) => {
   return ' ';
 };
 
+const renderLobby = () => {
+  jetty.clear();
+  jetty.moveTo([0, 0]);
+  jetty.text('Lobby - Press Enter to start the game\n\n');
+
+  jetty.text(`Local Player\n`);
+  jetty.text(`Health: ${playerHealth}\n\n`);
+
+  for (const id in peers) {
+    const { state } = peers[id];
+    jetty.text(`Player: ${id}\n`);
+    jetty.text(`Health: ${state.health}\n`);
+    jetty.text(`Ready: ${state.ready ? 'Yes' : 'No'}\n\n`);
+  }
+};
+
+const startGame = () => {
+  gameState = 'game';
+  for (const id in peers) {
+    if (peers[id].state) {
+      peers[id].state.ready = true;
+    }
+  }
+  broadcastState();
+  mainLoop();
+};
+
 const mainLoop = () => {
+  if (gameState !== 'game') return;
+
   t2 = performance.now();
   elapsedTime = (t2 - t1) / 1000;
   t1 = t2;
@@ -402,4 +442,4 @@ const mainLoop = () => {
 };
 
 initEvents();
-mainLoop();
+renderLobby(); // Initially render the lobby
