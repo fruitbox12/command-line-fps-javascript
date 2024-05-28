@@ -210,6 +210,30 @@ const getBulletChar = (x, y) => {
   return ' ';
 };
 
+const renderCrosshair = () => {
+  const crosshairColor = '\x1b[32m'; // Green color
+  const resetColor = '\x1b[0m';
+  const centerX = Math.floor(screenWidth / 2);
+  const centerY = Math.floor(screenHeight / 2);
+
+  // Vertical line of crosshair
+  for (let y = -2; y <= 2; y++) {
+    if (centerY + y >= 0 && centerY + y < screenHeight) {
+      screen[(centerY + y) * screenWidth + centerX] = `${crosshairColor}|${resetColor}`;
+    }
+  }
+
+  // Horizontal line of crosshair
+  for (let x = -2; x <= 2; x++) {
+    if (centerX + x >= 0 && centerX + x < screenWidth) {
+      screen[centerY * screenWidth + (centerX + x)] = `${crosshairColor}-${resetColor}`;
+    }
+  }
+
+  // Center of crosshair
+  screen[centerY * screenWidth + centerX] = `${crosshairColor}+${resetColor}`;
+};
+
 const mainLoop = () => {
   t2 = performance.now();
   elapsedTime = (t2 - t1) / 1000;
@@ -383,6 +407,8 @@ const mainLoop = () => {
       }
     }
   });
+
+  renderCrosshair(); // Render crosshair on top of the screen
 
   for (let y = 0; y < screenHeight; y++) {
     jetty.text(screen.slice(y * screenWidth, (y + 1) * screenWidth).join(''));
