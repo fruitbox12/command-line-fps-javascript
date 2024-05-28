@@ -46,6 +46,7 @@ const speed = 5.0;
 let playerX = 8.0;
 let playerY = 8.0;
 let playerA = 0.0;
+let playerHealth = 100; // Initialize player health
 
 let t1 = performance.now();
 let t2 = performance.now();
@@ -85,7 +86,8 @@ const sendState = (socket) => {
     x: playerX,
     y: playerY,
     a: playerA,
-    bullets
+    bullets,
+    health: playerHealth // Include health in the state
   });
   socket.write(state);
 };
@@ -96,7 +98,8 @@ const broadcastState = () => {
     x: playerX,
     y: playerY,
     a: playerA,
-    bullets
+    bullets,
+    health: playerHealth // Include health in the state
   });
   for (const id in peers) {
     if (peers[id].socket) {
@@ -196,12 +199,18 @@ const getBulletChar = (x, y) => {
   return ' ';
 };
 
+// Function to check for bullet collision with players
+const checkBulletCollision = (bullet, playerX, playerY) => {
+  const distance = Math.sqrt((bullet.x - playerX) ** 2 + (bullet.y - playerY) ** 2);
+  return distance < 0.5; // Collision threshold
+};
+
 const mainLoop = () => {
   t2 = performance.now();
   elapsedTime = (t2 - t1) / 1000;
   t1 = t2;
   jetty.moveTo([0, 0]);
-  jetty.text(`X=${playerX.toFixed(2)} Y=${playerY.toFixed(2)} A=${playerA.toFixed(2)} FPS=${(1.0 / elapsedTime).toFixed(2)}\n`);
+  jetty.text(`X=${playerX.toFixed(2)} Y=${playerY.toFixed(2)} A=${playerA.toFixed(2)} Health=${playerHealth} FPS=${(1.0 / elapsedTime).toFixed(2)}\n`);
 
   for (let x = 0; x < screenWidth; x++) {
     const rayAngle = (playerA - FOV / 2.0) + (x / screenWidth) * FOV;
@@ -354,6 +363,24 @@ const mainLoop = () => {
   bullets = bullets.map(bullet => {
     bullet.x += bullet.vx * elapsedTime;
     bullet.y += bullet.vy * elapsedTime;
+
+    // Check for collisions with the player
+    if (checkBulletCollision(bullet, playerX, playerY)) {
+      playerHealth -= 10; // Reduce player health on hit
+      bullet.remove = true;
+    }
+
+    // Check for collisions with other players
+    for (const id in peers) {
+      if (peers[id].state) {
+        const { x, y } = peers[id].state;
+        if (checkBulletCollision(bullet, x, y)) {
+          peers[id].state.health -= 10; // Reduce other player's health on hit
+          bullet.remove = true;
+        }
+      }
+    }
+
     if (map[parseInt(bullet.x) * mapWidth + parseInt(bullet.y)] === '#') bullet.remove = true;
     return bullet;
   }).filter(bullet => !bullet.remove);
