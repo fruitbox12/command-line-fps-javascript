@@ -37,8 +37,6 @@ const screenWidth = 120;
 const screenHeight = 40;
 const mapWidth = 16;
 const mapHeight = 16;
-const bulletHeight = 1;
-const bulletWidth = 1;
 const FOV = 3.14159 / 4.0;
 const depth = 16.0;
 const speed = 5.0;
@@ -146,7 +144,6 @@ const initEvents = () => {
       const vx = Math.sin(playerA + noise) * 8.0;
       const vy = Math.cos(playerA + noise) * 8.0;
       bullets.push({ x: playerX, y: playerY, vx, vy });
-      console.log(`Bullet created at (${playerX}, ${playerY}) with velocity (${vx}, ${vy})`); // Debugging log
     }
 
     broadcastState();
@@ -190,7 +187,11 @@ const getEnemyPlayerChar = (x, y) => {
   return ' ';
 };
 
-// Function to check for bullet collision with players
+// Function to get bullet ASCII art
+const getBulletChar = (x, y) => {
+  return '*';
+};
+
 const checkBulletCollision = (bullet, playerX, playerY) => {
   const distance = Math.sqrt((bullet.x - playerX) ** 2 + (bullet.y - playerY) ** 2);
   return distance < 0.5; // Collision threshold
@@ -277,52 +278,6 @@ const mainLoop = () => {
     }
   }
 
-  for (let x = 0; x < mapWidth; x++) {
-    for (let y = 0; y < mapWidth; y++) {
-      screen[y * screenWidth + x] = map[y * mapWidth + x];
-    }
-  }
-
-  screen[parseInt(playerX) * screenWidth + parseInt(playerY)] = 'P';
-
-  // Render other players in 3D view
-  for (const id in peers) {
-    if (peers[id].state) {
-      const { x, y, a } = peers[id].state;
-      const vecX = x - playerX;
-      const vecY = y - playerY;
-      const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
-      const eyeX = Math.sin(playerA);
-      const eyeY = Math.cos(playerA);
-      let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
-      if (objectAngle < -3.14159) objectAngle += 2.0 * 3.14159;
-      if (objectAngle > 3.14159) objectAngle -= 2.0 * 3.14159;
-      const inPlayerFOV = Math.abs(objectAngle) < (FOV / 2.0);
-      if (inPlayerFOV && distanceFromPlayer >= 0.5 && distanceFromPlayer < depth) {
-        const objectCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / parseFloat(distanceFromPlayer)));
-        const objectFloor = screenHeight - objectCeiling;
-        const objectHeight = parseInt(objectFloor - objectCeiling);
-        const objectAspectRatio = parseFloat(enemyArt.length / enemyArt[0].length);
-        const objectWidth = parseInt(objectHeight / objectAspectRatio);
-        const middleOfObject = (0.5 * (objectAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
-        for (let lx = 0; lx < objectWidth; lx++) {
-          for (let ly = 0; ly < objectHeight; ly++) {
-            const sampleX = parseFloat(lx / objectWidth);
-            const sampleY = parseFloat(ly / objectHeight);
-            const char = getEnemyPlayerChar(sampleX, sampleY);
-            const objectColumn = parseInt(middleOfObject + lx - (objectWidth / 2.0));
-            if (objectColumn >= 0 && objectColumn < screenWidth) {
-              if (char !== ' ' && depthBuffer[objectColumn] >= distanceFromPlayer) {
-                screen[objectColumn + (parseInt(objectCeiling + ly) * screenWidth)] = char;
-                depthBuffer[objectColumn] = distanceFromPlayer;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
   // Render bullets in 3D view
   bullets.forEach(bullet => {
     const vecX = bullet.x - playerX;
@@ -330,17 +285,17 @@ const mainLoop = () => {
     const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
     const eyeX = Math.sin(playerA);
     const eyeY = Math.cos(playerA);
-    let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
-    if (objectAngle < -3.14159) objectAngle += 2.0 * 3.14159;
-    if (objectAngle > 3.14159) objectAngle -= 2.0 * 3.14159;
-    const inPlayerFOV = Math.abs(objectAngle) < (FOV / 2.0);
+    let bulletAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
+    if (bulletAngle < -3.14159) bulletAngle += 2.0 * 3.14159;
+    if (bulletAngle > 3.14159) bulletAngle -= 2.0 * 3.14159;
+    const inPlayerFOV = Math.abs(bulletAngle) < (FOV / 2.0);
     if (inPlayerFOV && distanceFromPlayer >= 0.5 && distanceFromPlayer < depth && !bullet.remove) {
       const bulletCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / parseFloat(distanceFromPlayer)));
       const bulletFloor = screenHeight - bulletCeiling;
       const bulletHeight = parseInt(bulletFloor - bulletCeiling);
       const bulletAspectRatio = 1.0;
       const bulletWidth = parseInt(bulletHeight / bulletAspectRatio);
-      const bulletMiddle = (0.5 * (objectAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
+      const bulletMiddle = (0.5 * (bulletAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
 
       for (let lx = 0; lx < bulletWidth; lx++) {
         for (let ly = 0; ly < bulletHeight; ly++) {
