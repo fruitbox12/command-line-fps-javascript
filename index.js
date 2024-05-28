@@ -142,10 +142,12 @@ const initEvents = () => {
     }
 
     if (key.name === 'space') {
+      console.log('Spacebar pressed, shooting bullet'); // Debugging log
       const noise = (Math.random() - 0.5) * 0.1;
       const vx = Math.sin(playerA + noise) * 8.0;
       const vy = Math.cos(playerA + noise) * 8.0;
       bullets.push({ x: playerX, y: playerY, vx, vy });
+      console.log(`Bullet created at (${playerX}, ${playerY}) with velocity (${vx}, ${vy})`); // Debugging log
     }
 
     broadcastState();
