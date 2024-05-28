@@ -37,6 +37,8 @@ const screenWidth = 120;
 const screenHeight = 40;
 const mapWidth = 16;
 const mapHeight = 16;
+const bulletHeight = 1;
+const bulletWidth = 1;
 const FOV = 3.14159 / 4.0;
 const depth = 16.0;
 const speed = 5.0;
@@ -341,6 +343,16 @@ const mainLoop = () => {
     console.log('Player died. Respawning...');
     respawnPlayer();
   }
+
+  // Render the minimap
+  for (let nx = 0; nx < mapWidth; nx++) {
+    for (let ny = 0; ny < mapHeight; ny++) {
+      screen[ny * screenWidth + nx] = map[ny * mapWidth + nx];
+    }
+  }
+
+  // Render the player on the minimap
+  screen[parseInt(playerY) * screenWidth + parseInt(playerX)] = 'P';
 
   for (let y = 0; y < screenHeight; y++) {
     jetty.text(screen.slice(y * screenWidth, (y + 1) * screenWidth).join(''));
