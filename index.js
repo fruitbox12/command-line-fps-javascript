@@ -37,6 +37,8 @@ const screenWidth = 120;
 const screenHeight = 40;
 const mapWidth = 16;
 const mapHeight = 16;
+const bulletHeight = 5;
+const bulletWidth = 10;
 const FOV = 3.14159 / 4.0;
 const depth = 16.0;
 const speed = 5.0;
@@ -44,7 +46,6 @@ const speed = 5.0;
 let playerX = 8.0;
 let playerY = 8.0;
 let playerA = 0.0;
-let playerHealth = 100; // Initialize player health
 
 let t1 = performance.now();
 let t2 = performance.now();
@@ -84,8 +85,7 @@ const sendState = (socket) => {
     x: playerX,
     y: playerY,
     a: playerA,
-    bullets,
-    health: playerHealth // Include health in the state
+    bullets
   });
   socket.write(state);
 };
@@ -96,8 +96,7 @@ const broadcastState = () => {
     x: playerX,
     y: playerY,
     a: playerA,
-    bullets,
-    health: playerHealth // Include health in the state
+    bullets
   });
   for (const id in peers) {
     if (peers[id].socket) {
@@ -188,20 +187,13 @@ const getEnemyPlayerChar = (x, y) => {
 };
 
 // Function to get bullet ASCII art
-const getBulletChar = () => {
-  return `\x1b[33mO\x1b[0m`; // Orange bullet
-};
-
-const checkBulletCollision = (bullet, playerX, playerY) => {
-  const distance = Math.sqrt((bullet.x - playerX) ** 2 + (bullet.y - playerY) ** 2);
-  return distance < 0.5; // Collision threshold
-};
-
-const respawnPlayer = () => {
-  playerX = 8.0;
-  playerY = 8.0;
-  playerA = 0.0;
-  playerHealth = 100;
+const getBulletChar = (x, y) => {
+  const newX = parseInt(x * bulletWidth);
+  const newY = parseInt(y * bulletHeight);
+  if (newY === parseInt(bulletHeight / 2) && (newX === parseInt(bulletWidth / 2) || newX === parseInt(bulletWidth / 2) - 1)) {
+    return '*';
+  }
+  return ' ';
 };
 
 const mainLoop = () => {
@@ -209,7 +201,7 @@ const mainLoop = () => {
   elapsedTime = (t2 - t1) / 1000;
   t1 = t2;
   jetty.moveTo([0, 0]);
-  jetty.text(`X=${playerX.toFixed(2)} Y=${playerY.toFixed(2)} A=${playerA.toFixed(2)} Health=${playerHealth} FPS=${(1.0 / elapsedTime).toFixed(2)}\n`);
+  jetty.text(`X=${playerX.toFixed(2)} Y=${playerY.toFixed(2)} A=${playerA.toFixed(2)} FPS=${(1.0 / elapsedTime).toFixed(2)}\n`);
 
   for (let x = 0; x < screenWidth; x++) {
     const rayAngle = (playerA - FOV / 2.0) + (x / screenWidth) * FOV;
@@ -278,79 +270,93 @@ const mainLoop = () => {
     }
   }
 
-  // Render bullets in 3D view
+  for (let x = 0; x < mapWidth; x++) {
+    for (let y = 0; y < mapWidth; y++) {
+      screen[y * screenWidth + x] = map[y * mapWidth + x];
+    }
+  }
+
+  screen[parseInt(playerX) * screenWidth + parseInt(playerY)] = 'P';
+
+  // Render other players in 3D view
+  for (const id in peers) {
+    if (peers[id].state) {
+      const { x, y, a } = peers[id].state;
+      const vecX = x - playerX;
+      const vecY = y - playerY;
+      const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
+      const eyeX = Math.sin(playerA);
+      const eyeY = Math.cos(playerA);
+      let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
+      if (objectAngle < -3.14159) objectAngle += 2.0 * 3.14159;
+      if (objectAngle > 3.14159) objectAngle -= 2.0 * 3.14159;
+      const inPlayerFOV = Math.abs(objectAngle) < (FOV / 2.0);
+      if (inPlayerFOV && distanceFromPlayer >= 0.5 && distanceFromPlayer < depth) {
+        const objectCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / parseFloat(distanceFromPlayer)));
+        const objectFloor = screenHeight - objectCeiling;
+        const objectHeight = parseInt(objectFloor - objectCeiling);
+        const objectAspectRatio = parseFloat(enemyArt.length / enemyArt[0].length);
+        const objectWidth = parseInt(objectHeight / objectAspectRatio);
+        const middleOfObject = (0.5 * (objectAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
+        for (let lx = 0; lx < objectWidth; lx++) {
+          for (let ly = 0; ly < objectHeight; ly++) {
+            const sampleX = parseFloat(lx / objectWidth);
+            const sampleY = parseFloat(ly / objectHeight);
+            const char = getEnemyPlayerChar(sampleX, sampleY);
+            const objectColumn = parseInt(middleOfObject + lx - (objectWidth / 2.0));
+            if (objectColumn >= 0 && objectColumn < screenWidth) {
+              if (char !== ' ' && depthBuffer[objectColumn] >= distanceFromPlayer) {
+                screen[objectColumn + (parseInt(objectCeiling + ly) * screenWidth)] = char;
+                depthBuffer[objectColumn] = distanceFromPlayer;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   bullets.forEach(bullet => {
     const vecX = bullet.x - playerX;
     const vecY = bullet.y - playerY;
     const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
     const eyeX = Math.sin(playerA);
     const eyeY = Math.cos(playerA);
-    let bulletAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
-    if (bulletAngle < -3.14159) bulletAngle += 2.0 * 3.14159;
-    if (bulletAngle > 3.14159) bulletAngle -= 2.0 * 3.14159;
-    const inPlayerFOV = Math.abs(bulletAngle) < (FOV / 2.0);
+    let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
+    if (objectAngle < -3.14159) objectAngle += 2.0 * 3.14159;
+    if (objectAngle > 3.14159) objectAngle -= 2.0 * 3.14159;
+    const inPlayerFOV = Math.abs(objectAngle) < (FOV / 2.0);
     if (inPlayerFOV && distanceFromPlayer >= 0.5 && distanceFromPlayer < depth && !bullet.remove) {
-      const bulletCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / parseFloat(distanceFromPlayer)));
-      const bulletFloor = screenHeight - bulletCeiling;
-      const bulletHeight = parseInt(bulletFloor - bulletCeiling);
-      const bulletAspectRatio = 1.0;
-      const bulletWidth = parseInt(bulletHeight / bulletAspectRatio);
-      const bulletMiddle = (0.5 * (bulletAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
-
-      for (let lx = 0; lx < bulletWidth; lx++) {
-        for (let ly = 0; ly < bulletHeight; ly++) {
-          const bulletX = parseInt(bulletMiddle + lx - (bulletWidth / 2.0));
-          const bulletY = parseInt(bulletCeiling + ly);
-          if (bulletX >= 0 && bulletX < screenWidth && bulletY >= 0 && bulletY < screenHeight) {
-            if (depthBuffer[bulletX] >= distanceFromPlayer) {
-              screen[bulletY * screenWidth + bulletX] = getBulletChar();
-              depthBuffer[bulletX] = distanceFromPlayer;
+      const objectCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / parseFloat(distanceFromPlayer)));
+      const objectFloor = screenHeight - objectCeiling;
+      const objectHeight = parseInt(objectFloor - objectCeiling);
+      const objectAspectRatio = parseFloat(bulletHeight / bulletWidth);
+      const objectWidth = parseInt(objectHeight / objectAspectRatio);
+      const middleOfObject = (0.5 * (objectAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
+      for (let lx = 0; lx < objectWidth; lx++) {
+        for (let ly = 0; ly < objectHeight; ly++) {
+          const sampleX = parseFloat(lx / objectWidth);
+          const sampleY = parseFloat(ly / objectHeight);
+          const char = getBulletChar(sampleX, sampleY);
+          const objectColumn = parseInt(middleOfObject + lx - (objectWidth / 2.0));
+          if (objectColumn >= 0 && objectColumn < screenWidth) {
+            if (char !== ' ' && depthBuffer[objectColumn] >= distanceFromPlayer) {
+              screen[objectColumn + (parseInt(objectCeiling + ly) * screenWidth)] = char;
+              depthBuffer[objectColumn] = distanceFromPlayer;
             }
           }
         }
       }
     }
+    screen[parseInt(bullet.x) * screenWidth + parseInt(bullet.y)] = '*';
   });
 
   bullets = bullets.map(bullet => {
     bullet.x += bullet.vx * elapsedTime;
     bullet.y += bullet.vy * elapsedTime;
-
-    // Check for collisions with the player
-    if (checkBulletCollision(bullet, playerX, playerY)) {
-      playerHealth -= 10; // Reduce player health on hit
-      bullet.remove = true;
-    }
-
-    // Check for collisions with other players
-    for (const id in peers) {
-      if (peers[id].state) {
-        const { x, y } = peers[id].state;
-        if (checkBulletCollision(bullet, x, y)) {
-          peers[id].state.health -= 10; // Reduce other player's health on hit
-          bullet.remove = true;
-        }
-      }
-    }
-
     if (map[parseInt(bullet.x) * mapWidth + parseInt(bullet.y)] === '#') bullet.remove = true;
     return bullet;
   }).filter(bullet => !bullet.remove);
-
-  if (playerHealth <= 0) {
-    console.log('Player died. Respawning...');
-    respawnPlayer();
-  }
-
-  // Render the minimap
-  for (let nx = 0; nx < mapWidth; nx++) {
-    for (let ny = 0; ny < mapHeight; ny++) {
-      screen[ny * screenWidth + nx] = map[ny * mapWidth + nx];
-    }
-  }
-
-  // Render the player on the minimap
-  screen[parseInt(playerY) * screenWidth + parseInt(playerX)] = 'P';
 
   for (let y = 0; y < screenHeight; y++) {
     jetty.text(screen.slice(y * screenWidth, (y + 1) * screenWidth).join(''));
