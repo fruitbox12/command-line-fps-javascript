@@ -148,7 +148,7 @@ const initEvents = () => {
       playerY -= Math.cos(playerA) * speed * elapsedTime;
       if (map[parseInt(playerX) * mapWidth + parseInt(playerY)] === '#') {
         playerX += Math.sin(playerA) * speed * elapsedTime;
-        playerY += Math.cos(playerA) * elapsedTime;
+        playerY += Math.cos(playerA) * speed * elapsedTime;
       }
     }
 
