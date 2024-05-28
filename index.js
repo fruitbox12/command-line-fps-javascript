@@ -66,7 +66,7 @@ swarm.join(topic, {
 swarm.on('connection', (socket, peerInfo) => {
   console.log('New connection!');
   const id = peerInfo.publicKey.toString('hex');
-  peers[id] = { socket, state: { health: 100, ready: false } };
+  peers[id] = { socket, state: { health: 100 } };
 
   socket.on('data', (data) => {
     const state = JSON.parse(data.toString());
@@ -91,7 +91,6 @@ const sendState = (socket) => {
     a: playerA,
     health: playerHealth,
     bullets,
-    ready: gameState === 'lobby' ? false : true,
     gameState
   });
   socket.write(state);
@@ -105,7 +104,6 @@ const broadcastState = () => {
     a: playerA,
     health: playerHealth,
     bullets,
-    ready: gameState === 'lobby' ? false : true,
     gameState
   });
   for (const id in peers) {
@@ -222,22 +220,17 @@ const renderLobby = () => {
 
   jetty.text('Players:\n');
   jetty.text('---------------------------------\n');
-  jetty.text('Hash                             Health  Ready\n');
+  jetty.text('Hash                             Health\n');
   jetty.text('---------------------------------\n');
   for (const id in peers) {
     const { state } = peers[id];
-    jetty.text(`${id}  ${state.health}     ${state.ready ? 'Yes' : 'No'}\n`);
+    jetty.text(`${id}  ${state.health}\n`);
   }
   jetty.text('---------------------------------\n');
 };
 
 const startGame = () => {
   gameState = 'game';
-  for (const id in peers) {
-    if (peers[id].state) {
-      peers[id].state.ready = true;
-    }
-  }
   broadcastState();
   mainLoop();
 };
