@@ -37,8 +37,6 @@ const screenWidth = 120;
 const screenHeight = 40;
 const mapWidth = 16;
 const mapHeight = 16;
-const bulletHeight = 1;
-const bulletWidth = 1;
 const FOV = 3.14159 / 4.0;
 const depth = 16.0;
 const speed = 5.0;
@@ -190,8 +188,8 @@ const getEnemyPlayerChar = (x, y) => {
 };
 
 // Function to get bullet ASCII art
-const getBulletChar = (x, y) => {
-  return '*';
+const getBulletChar = () => {
+  return `\x1b[33mO\x1b[0m`; // Orange bullet
 };
 
 const checkBulletCollision = (bullet, playerX, playerY) => {
@@ -305,7 +303,7 @@ const mainLoop = () => {
           const bulletY = parseInt(bulletCeiling + ly);
           if (bulletX >= 0 && bulletX < screenWidth && bulletY >= 0 && bulletY < screenHeight) {
             if (depthBuffer[bulletX] >= distanceFromPlayer) {
-              screen[bulletY * screenWidth + bulletX] = '*';
+              screen[bulletY * screenWidth + bulletX] = getBulletChar();
               depthBuffer[bulletX] = distanceFromPlayer;
             }
           }
