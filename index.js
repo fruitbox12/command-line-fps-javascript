@@ -46,6 +46,10 @@ const speed = 5.0;
 let playerX = 8.0;
 let playerY = 8.0;
 let playerA = 0.0;
+let playerHealth = 100;
+
+const respawnLocation = { x: 8.0, y: 8.0 };
+const respawnDelay = 3000; // 3 seconds
 
 let t1 = performance.now();
 let t2 = performance.now();
@@ -85,7 +89,8 @@ const sendState = (socket) => {
     x: playerX,
     y: playerY,
     a: playerA,
-    bullets
+    bullets,
+    health: playerHealth
   });
   socket.write(state);
 };
@@ -96,13 +101,22 @@ const broadcastState = () => {
     x: playerX,
     y: playerY,
     a: playerA,
-    bullets
+    bullets,
+    health: playerHealth
   });
   for (const id in peers) {
     if (peers[id].socket) {
       peers[id].socket.write(state);
     }
   }
+};
+
+const respawnPlayer = () => {
+  playerX = respawnLocation.x;
+  playerY = respawnLocation.y;
+  playerA = 0.0;
+  playerHealth = 100;
+  broadcastState();
 };
 
 const initEvents = () => {
@@ -134,7 +148,7 @@ const initEvents = () => {
       playerY -= Math.cos(playerA) * speed * elapsedTime;
       if (map[parseInt(playerX) * mapWidth + parseInt(playerY)] === '#') {
         playerX += Math.sin(playerA) * speed * elapsedTime;
-        playerY += Math.cos(playerA) * speed * elapsedTime;
+        playerY += Math.cos(playerA) * elapsedTime;
       }
     }
 
@@ -201,7 +215,7 @@ const mainLoop = () => {
   elapsedTime = (t2 - t1) / 1000;
   t1 = t2;
   jetty.moveTo([0, 0]);
-  jetty.text(`X=${playerX.toFixed(2)} Y=${playerY.toFixed(2)} A=${playerA.toFixed(2)} FPS=${(1.0 / elapsedTime).toFixed(2)}\n`);
+  jetty.text(`X=${playerX.toFixed(2)} Y=${playerY.toFixed(2)} A=${playerA.toFixed(2)} Health=${playerHealth} FPS=${(1.0 / elapsedTime).toFixed(2)}\n`);
 
   for (let x = 0; x < screenWidth; x++) {
     const rayAngle = (playerA - FOV / 2.0) + (x / screenWidth) * FOV;
@@ -357,6 +371,17 @@ const mainLoop = () => {
     if (map[parseInt(bullet.x) * mapWidth + parseInt(bullet.y)] === '#') bullet.remove = true;
     return bullet;
   }).filter(bullet => !bullet.remove);
+
+  // Check for bullet collisions with player
+  bullets.forEach(bullet => {
+    if (Math.abs(bullet.x - playerX) < 0.5 && Math.abs(bullet.y - playerY) < 0.5) {
+      playerHealth -= 20;
+      bullet.remove = true;
+      if (playerHealth <= 0) {
+        setTimeout(respawnPlayer, respawnDelay);
+      }
+    }
+  });
 
   for (let y = 0; y < screenHeight; y++) {
     jetty.text(screen.slice(y * screenWidth, (y + 1) * screenWidth).join(''));
