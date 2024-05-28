@@ -37,6 +37,8 @@ const screenWidth = 120;
 const screenHeight = 40;
 const mapWidth = 16;
 const mapHeight = 16;
+const bulletHeight = 1;
+const bulletWidth = 1;
 const FOV = 3.14159 / 4.0;
 const depth = 16.0;
 const speed = 5.0;
@@ -152,6 +154,40 @@ const initEvents = () => {
 
   process.stdin.setRawMode(true);
   process.stdin.resume();
+};
+
+// ASCII Art for enemy players
+const enemyArt = [
+  "    .---.    ",
+  "  /_____\\  ",
+  "  ( '.' )  ",
+  "   \\_-_/  ",
+  "  .-\"`'V'//-. ",
+  " / ,   |// , \\ ",
+  "/ /|Ll //Ll|\\ \\ ",
+  "/ / |__//   | \\_\\ ",
+  "\\ \\/---|[]==| / / ",
+  "\\/\\__/ |   \\/\\/ ",
+  "|/_   | Ll_\\| ",
+  "  |`^\"\"\"^`| ",
+  "  |   |   | ",
+  "  |   |   | ",
+  "  |   |   | ",
+  "  |   |   | ",
+  "  L___l___J ",
+  "   |_ | _|  ",
+  "(___|___) ",
+  "^^^ ^^^ "
+];
+
+// Function to get enemy player ASCII art in red
+const getEnemyPlayerChar = (x, y) => {
+  const artX = parseInt(x * enemyArt[0].length);
+  const artY = parseInt(y * enemyArt.length);
+  if (artY < enemyArt.length && artX < enemyArt[artY].length) {
+    return `\x1b[31m${enemyArt[artY][artX]}\x1b[0m`; // Red color
+  }
+  return ' ';
 };
 
 // Function to check for bullet collision with players
@@ -287,7 +323,41 @@ const mainLoop = () => {
     }
   }
 
+  // Render bullets in 3D view
   bullets.forEach(bullet => {
+    const vecX = bullet.x - playerX;
+    const vecY = bullet.y - playerY;
+    const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
+    const eyeX = Math.sin(playerA);
+    const eyeY = Math.cos(playerA);
+    let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
+    if (objectAngle < -3.14159) objectAngle += 2.0 * 3.14159;
+    if (objectAngle > 3.14159) objectAngle -= 2.0 * 3.14159;
+    const inPlayerFOV = Math.abs(objectAngle) < (FOV / 2.0);
+    if (inPlayerFOV && distanceFromPlayer >= 0.5 && distanceFromPlayer < depth && !bullet.remove) {
+      const bulletCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / parseFloat(distanceFromPlayer)));
+      const bulletFloor = screenHeight - bulletCeiling;
+      const bulletHeight = parseInt(bulletFloor - bulletCeiling);
+      const bulletAspectRatio = 1.0;
+      const bulletWidth = parseInt(bulletHeight / bulletAspectRatio);
+      const bulletMiddle = (0.5 * (objectAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
+
+      for (let lx = 0; lx < bulletWidth; lx++) {
+        for (let ly = 0; ly < bulletHeight; ly++) {
+          const bulletX = parseInt(bulletMiddle + lx - (bulletWidth / 2.0));
+          const bulletY = parseInt(bulletCeiling + ly);
+          if (bulletX >= 0 && bulletX < screenWidth && bulletY >= 0 && bulletY < screenHeight) {
+            if (depthBuffer[bulletX] >= distanceFromPlayer) {
+              screen[bulletY * screenWidth + bulletX] = '*';
+              depthBuffer[bulletX] = distanceFromPlayer;
+            }
+          }
+        }
+      }
+    }
+  });
+
+  bullets = bullets.map(bullet => {
     bullet.x += bullet.vx * elapsedTime;
     bullet.y += bullet.vy * elapsedTime;
 
@@ -308,41 +378,9 @@ const mainLoop = () => {
       }
     }
 
-    // Render the bullet in 3D view
-    const bulletDistance = Math.sqrt((bullet.x - playerX) ** 2 + (bullet.y - playerY) ** 2);
-    if (bulletDistance >= 0.5 && bulletDistance < depth) {
-      const bulletAngle = Math.atan2(bullet.y - playerY, bullet.x - playerX) - playerA;
-      if (bulletAngle < -3.14159) bulletAngle += 2.0 * 3.14159;
-      if (bulletAngle > 3.14159) bulletAngle -= 2.0 * 3.14159;
-
-      const inFOV = Math.abs(bulletAngle) < (FOV / 2.0);
-      if (inFOV) {
-        const bulletCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / bulletDistance));
-        const bulletFloor = screenHeight - bulletCeiling;
-        const bulletHeight = parseInt(bulletFloor - bulletCeiling);
-        const bulletAspectRatio = 1.0;
-        const bulletWidth = parseInt(bulletHeight / bulletAspectRatio);
-        const bulletMiddle = (0.5 * (bulletAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
-
-        for (let lx = 0; lx < bulletWidth; lx++) {
-          for (let ly = 0; ly < bulletHeight; ly++) {
-            const bulletX = parseInt(bulletMiddle + lx - (bulletWidth / 2.0));
-            const bulletY = parseInt(bulletCeiling + ly);
-            if (bulletX >= 0 && bulletX < screenWidth && bulletY >= 0 && bulletY < screenHeight) {
-              if (depthBuffer[bulletX] >= bulletDistance) {
-                screen[bulletY * screenWidth + bulletX] = '*';
-                depthBuffer[bulletX] = bulletDistance;
-              }
-            }
-          }
-        }
-      }
-    }
-
     if (map[parseInt(bullet.x) * mapWidth + parseInt(bullet.y)] === '#') bullet.remove = true;
-  });
-
-  bullets = bullets.filter(bullet => !bullet.remove);
+    return bullet;
+  }).filter(bullet => !bullet.remove);
 
   if (playerHealth <= 0) {
     console.log('Player died. Respawning...');
