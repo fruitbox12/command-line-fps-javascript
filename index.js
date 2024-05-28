@@ -91,7 +91,8 @@ const sendState = (socket) => {
     a: playerA,
     health: playerHealth,
     bullets,
-    ready: gameState === 'lobby' ? false : true
+    ready: gameState === 'lobby' ? false : true,
+    gameState
   });
   socket.write(state);
 };
@@ -104,7 +105,8 @@ const broadcastState = () => {
     a: playerA,
     health: playerHealth,
     bullets,
-    ready: gameState === 'lobby' ? false : true
+    ready: gameState === 'lobby' ? false : true,
+    gameState
   });
   for (const id in peers) {
     if (peers[id].socket) {
@@ -218,12 +220,15 @@ const renderLobby = () => {
   jetty.text(`Local Player\n`);
   jetty.text(`Health: ${playerHealth}\n\n`);
 
+  jetty.text('Players:\n');
+  jetty.text('---------------------------------\n');
+  jetty.text('Hash                             Health  Ready\n');
+  jetty.text('---------------------------------\n');
   for (const id in peers) {
     const { state } = peers[id];
-    jetty.text(`Player: ${id}\n`);
-    jetty.text(`Health: ${state.health}\n`);
-    jetty.text(`Ready: ${state.ready ? 'Yes' : 'No'}\n\n`);
+    jetty.text(`${id}  ${state.health}     ${state.ready ? 'Yes' : 'No'}\n`);
   }
+  jetty.text('---------------------------------\n');
 };
 
 const startGame = () => {
