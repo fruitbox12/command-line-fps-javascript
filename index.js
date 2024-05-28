@@ -330,6 +330,7 @@ const mainLoop = () => {
     }
   }
 
+  // Render bullets in 3D view
   bullets.forEach(bullet => {
     const vecX = bullet.x - playerX;
     const vecY = bullet.y - playerY;
