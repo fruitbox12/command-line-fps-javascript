@@ -48,9 +48,6 @@ let playerY = 8.0;
 let playerA = 0.0;
 let playerHealth = 100;
 
-const respawnLocation = { x: 8.0, y: 8.0 };
-const respawnDelay = 3000; // 3 seconds
-
 let t1 = performance.now();
 let t2 = performance.now();
 let elapsedTime = 0;
@@ -68,7 +65,7 @@ swarm.join(topic, {
 swarm.on('connection', (socket, peerInfo) => {
   console.log('New connection!');
   const id = peerInfo.publicKey.toString('hex');
-  peers[id] = { socket, state: {} };
+  peers[id] = { socket, state: { health: 100 } };
 
   socket.on('data', (data) => {
     const state = JSON.parse(data.toString());
@@ -89,8 +86,8 @@ const sendState = (socket) => {
     x: playerX,
     y: playerY,
     a: playerA,
-    bullets,
-    health: playerHealth
+    health: playerHealth,
+    bullets
   });
   socket.write(state);
 };
@@ -101,22 +98,14 @@ const broadcastState = () => {
     x: playerX,
     y: playerY,
     a: playerA,
-    bullets,
-    health: playerHealth
+    health: playerHealth,
+    bullets
   });
   for (const id in peers) {
     if (peers[id].socket) {
       peers[id].socket.write(state);
     }
   }
-};
-
-const respawnPlayer = () => {
-  playerX = respawnLocation.x;
-  playerY = respawnLocation.y;
-  playerA = 0.0;
-  playerHealth = 100;
-  broadcastState();
 };
 
 const initEvents = () => {
@@ -210,30 +199,6 @@ const getBulletChar = (x, y) => {
   return ' ';
 };
 
-const renderCrosshair = () => {
-  const crosshairColor = '\x1b[32m'; // Green color
-  const resetColor = '\x1b[0m';
-  const centerX = Math.floor(screenWidth / 2);
-  const centerY = Math.floor(screenHeight / 2);
-
-  // Vertical line of crosshair
-  for (let y = -2; y <= 2; y++) {
-    if (centerY + y >= 0 && centerY + y < screenHeight) {
-      screen[(centerY + y) * screenWidth + centerX] = `${crosshairColor}|${resetColor}`;
-    }
-  }
-
-  // Horizontal line of crosshair
-  for (let x = -2; x <= 2; x++) {
-    if (centerX + x >= 0 && centerX + x < screenWidth) {
-      screen[centerY * screenWidth + (centerX + x)] = `${crosshairColor}-${resetColor}`;
-    }
-  }
-
-  // Center of crosshair
-  screen[centerY * screenWidth + centerX] = `${crosshairColor}+${resetColor}`;
-};
-
 const mainLoop = () => {
   t2 = performance.now();
   elapsedTime = (t2 - t1) / 1000;
@@ -319,7 +284,7 @@ const mainLoop = () => {
   // Render other players in 3D view
   for (const id in peers) {
     if (peers[id].state) {
-      const { x, y, a } = peers[id].state;
+      const { x, y, a, health } = peers[id].state;
       const vecX = x - playerX;
       const vecY = y - playerY;
       const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
@@ -354,7 +319,6 @@ const mainLoop = () => {
     }
   }
 
-  // Render bullets in 3D view
   bullets.forEach(bullet => {
     const vecX = bullet.x - playerX;
     const vecY = bullet.y - playerY;
@@ -387,32 +351,51 @@ const mainLoop = () => {
         }
       }
     }
-    screen[parseInt(bullet.x) * screenWidth + parseInt(bullet.y)] = '*';
-  });
 
-  bullets = bullets.map(bullet => {
-    bullet.x += bullet.vx * elapsedTime;
-    bullet.y += bullet.vy * elapsedTime;
-    if (map[parseInt(bullet.x) * mapWidth + parseInt(bullet.y)] === '#') bullet.remove = true;
-    return bullet;
-  }).filter(bullet => !bullet.remove);
-
-  // Check for bullet collisions with player
-  bullets.forEach(bullet => {
-    if (Math.abs(bullet.x - playerX) < 0.5 && Math.abs(bullet.y - playerY) < 0.5) {
-      playerHealth -= 20;
+    if (map[parseInt(bullet.x) * mapWidth + parseInt(bullet.y)] === '#') {
       bullet.remove = true;
-      if (playerHealth <= 0) {
-        setTimeout(respawnPlayer, respawnDelay);
+    } else {
+      for (const id in peers) {
+        if (peers[id].state) {
+          const { x, y } = peers[id].state;
+          const bulletDist = Math.sqrt((bullet.x - x) ** 2 + (bullet.y - y) ** 2);
+          if (bulletDist < 0.5) {
+            peers[id].state.health -= 10;
+            bullet.remove = true;
+            if (peers[id].state.health <= 0) {
+              delete peers[id]; // Remove the peer if health is zero or below
+            }
+            break;
+          }
+        }
       }
     }
+
+    bullet.x += bullet.vx * elapsedTime;
+    bullet.y += bullet.vy * elapsedTime;
   });
 
-  renderCrosshair(); // Render crosshair on top of the screen
+  bullets = bullets.filter(bullet => !bullet.remove);
 
   for (let y = 0; y < screenHeight; y++) {
     jetty.text(screen.slice(y * screenWidth, (y + 1) * screenWidth).join(''));
     jetty.text('\n');
+  }
+
+  // Render crosshair
+  const crosshair = [
+    '   +   ',
+    '   |   ',
+    '---+---',
+    '   |   ',
+    '   +   ',
+  ];
+  const crosshairX = Math.floor(screenWidth / 2) - 3;
+  const crosshairY = Math.floor(screenHeight / 2) - 2;
+
+  for (let i = 0; i < crosshair.length; i++) {
+    jetty.moveTo([crosshairY + i, crosshairX]);
+    jetty.text(crosshair[i]);
   }
 
   requestAnimationFrame(mainLoop);
