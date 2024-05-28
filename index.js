@@ -37,8 +37,6 @@ const screenWidth = 120;
 const screenHeight = 40;
 const mapWidth = 16;
 const mapHeight = 16;
-const bulletHeight = 5;
-const bulletWidth = 10;
 const FOV = 3.14159 / 4.0;
 const depth = 16.0;
 const speed = 5.0;
@@ -142,7 +140,6 @@ const initEvents = () => {
     }
 
     if (key.name === 'space') {
-      console.log('Spacebar pressed, shooting bullet'); // Debugging log
       const noise = (Math.random() - 0.5) * 0.1;
       const vx = Math.sin(playerA + noise) * 8.0;
       const vy = Math.cos(playerA + noise) * 8.0;
@@ -187,16 +184,6 @@ const getEnemyPlayerChar = (x, y) => {
   const artY = parseInt(y * enemyArt.length);
   if (artY < enemyArt.length && artX < enemyArt[artY].length) {
     return `\x1b[31m${enemyArt[artY][artX]}\x1b[0m`; // Red color
-  }
-  return ' ';
-};
-
-// Function to get bullet ASCII art
-const getBulletChar = (x, y) => {
-  const newX = parseInt(x * bulletWidth);
-  const newY = parseInt(y * bulletHeight);
-  if (newY === parseInt(bulletHeight / 2) && (newX === parseInt(bulletWidth / 2) || newX === parseInt(bulletWidth / 2) - 1)) {
-    return '*';
   }
   return ' ';
 };
@@ -328,41 +315,6 @@ const mainLoop = () => {
   }
 
   bullets.forEach(bullet => {
-    const vecX = bullet.x - playerX;
-    const vecY = bullet.y - playerY;
-    const distanceFromPlayer = Math.sqrt(vecX * vecX + vecY * vecY);
-    const eyeX = Math.sin(playerA);
-    const eyeY = Math.cos(playerA);
-    let objectAngle = Math.atan2(eyeY, eyeX) - Math.atan2(vecY, vecX);
-    if (objectAngle < -3.14159) objectAngle += 2.0 * 3.14159;
-    if (objectAngle > 3.14159) objectAngle -= 2.0 * 3.14159;
-    const inPlayerFOV = Math.abs(objectAngle) < (FOV / 2.0);
-    if (inPlayerFOV && distanceFromPlayer >= 0.5 && distanceFromPlayer < depth && !bullet.remove) {
-      const objectCeiling = parseInt(parseFloat(screenHeight / 2.0) - ((screenHeight / 2.0) / parseFloat(distanceFromPlayer)));
-      const objectFloor = screenHeight - objectCeiling;
-      const objectHeight = parseInt(objectFloor - objectCeiling);
-      const objectAspectRatio = parseFloat(bulletHeight / bulletWidth);
-      const objectWidth = parseInt(objectHeight / objectAspectRatio);
-      const middleOfObject = (0.5 * (objectAngle / (FOV / 2.0)) + 0.5) * parseFloat(screenWidth);
-      for (let lx = 0; lx < objectWidth; lx++) {
-        for (let ly = 0; ly < objectHeight; ly++) {
-          const sampleX = parseFloat(lx / objectWidth);
-          const sampleY = parseFloat(ly / objectHeight);
-          const char = getBulletChar(sampleX, sampleY);
-          const objectColumn = parseInt(middleOfObject + lx - (objectWidth / 2.0));
-          if (objectColumn >= 0 && objectColumn < screenWidth) {
-            if (char !== ' ' && depthBuffer[objectColumn] >= distanceFromPlayer) {
-              screen[objectColumn + (parseInt(objectCeiling + ly) * screenWidth)] = char;
-              depthBuffer[objectColumn] = distanceFromPlayer;
-            }
-          }
-        }
-      }
-    }
-    screen[parseInt(bullet.x) * screenWidth + parseInt(bullet.y)] = '*';
-  });
-
-  bullets = bullets.map(bullet => {
     bullet.x += bullet.vx * elapsedTime;
     bullet.y += bullet.vy * elapsedTime;
 
@@ -383,9 +335,17 @@ const mainLoop = () => {
       }
     }
 
+    // Render the bullet on the screen
+    const bulletScreenX = Math.floor(bullet.x);
+    const bulletScreenY = Math.floor(bullet.y);
+    if (bulletScreenX >= 0 && bulletScreenX < screenWidth && bulletScreenY >= 0 && bulletScreenY < screenHeight) {
+      screen[bulletScreenY * screenWidth + bulletScreenX] = '*';
+    }
+
     if (map[parseInt(bullet.x) * mapWidth + parseInt(bullet.y)] === '#') bullet.remove = true;
-    return bullet;
-  }).filter(bullet => !bullet.remove);
+  });
+
+  bullets = bullets.filter(bullet => !bullet.remove);
 
   for (let y = 0; y < screenHeight; y++) {
     jetty.text(screen.slice(y * screenWidth, (y + 1) * screenWidth).join(''));
